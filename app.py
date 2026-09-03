@@ -2,6 +2,7 @@ import os
 import re
 import secrets
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlencode
 
 import requests
@@ -57,7 +58,6 @@ def search_term_for(line):
     term = re.sub(r"\b(?:uncooked|beaten|crumbled|dried)\b\s*", "", term, flags=re.I)
     term = re.sub(r"\s+", " ", term).strip(" ,.-")
 
-    # A few recipe-language phrases search much better with a grocery-style name.
     replacements = {
         "garlic cloves": "garlic",
         "short-grain or jasmine rice": "jasmine rice",
@@ -112,10 +112,8 @@ def kroger_headers():
     return {"Authorization": f"Bearer {token['access_token']}", "Accept": "application/json"}
 
 
-def product_choices(term, limit=4):
-    headers = kroger_headers()
-    if not headers:
-        return []
+def product_choices(term, access_token, limit=4):
+    headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
     response = requests.get(
         f"{KROGER_API}/products",
         headers=headers,
@@ -124,7 +122,7 @@ def product_choices(term, limit=4):
             "filter.locationId": DEFAULT_LOCATION_ID,
             "filter.limit": limit,
         },
-        timeout=20,
+        timeout=8,
     )
     response.raise_for_status()
     choices = []
@@ -174,25 +172,41 @@ def index():
 
 @app.post("/match")
 def match_products():
-    if not token_for_session():
+    token = token_for_session()
+    if not token:
         session["oauth_error"] = "Please connect King Soopers before matching products."
         return redirect(url_for("index"))
 
     text = request.form.get("shopping_list", "")
     items = parse_list(text)
-    matched = []
-    for item in items:
-        try:
-            choices = product_choices(item["cleaned"])
-        except requests.RequestException as exc:
-            choices = []
-            item["error"] = str(exc)
-        item["choices"] = choices
-        matched.append(item)
+    if not items:
+        session["cart_message"] = "I couldn't find any grocery items in that list."
+        return redirect(url_for("index"))
+
+    # Search ingredients in parallel. A long grocery list used to perform one API request
+    # at a time, which could exceed Gunicorn/Render's request timeout and crash the page.
+    access_token = token["access_token"]
+    max_workers = min(12, max(1, len(items)))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_index = {
+            executor.submit(product_choices, item["cleaned"], access_token): idx
+            for idx, item in enumerate(items)
+        }
+        for future in as_completed(future_to_index):
+            idx = future_to_index[future]
+            try:
+                items[idx]["choices"] = future.result()
+            except requests.RequestException as exc:
+                items[idx]["choices"] = []
+                response = getattr(exc, "response", None)
+                items[idx]["error"] = f"Kroger search failed ({response.status_code})" if response is not None else "Kroger search timed out"
+            except Exception:
+                items[idx]["choices"] = []
+                items[idx]["error"] = "Product search failed for this item"
 
     return render_template(
         "match.html",
-        items=matched,
+        items=items,
         text=text,
         store_name=DEFAULT_STORE_NAME,
         store_address=DEFAULT_STORE_ADDRESS,
