@@ -21,6 +21,12 @@ KROGER_AUTHORIZE = f"{KROGER_API}/connect/oauth2/authorize"
 KROGER_TOKEN = f"{KROGER_API}/connect/oauth2/token"
 KROGER_SCOPES = "product.compact cart.basic:write profile.compact"
 
+# Central Park King Soopers, 10406 E Martin Luther King Jr Blvd, Denver CO 80238
+# Kroger store URL identifies it as division 620 / store 00123.
+DEFAULT_LOCATION_ID = "62000123"
+DEFAULT_STORE_NAME = "King Soopers – Central Park"
+DEFAULT_STORE_ADDRESS = "10406 E Martin Luther King Jr Blvd, Denver, CO 80238"
+
 # Simple server-side token store for this personal prototype.
 # Render may clear it when the service restarts/spins down, in which case just reconnect.
 TOKENS = {}
@@ -30,10 +36,37 @@ CATEGORIES = {
     "bakery & bread", "meat", "baking", "cheese", "dairy & eggs", "other"
 }
 
-PREP_WORDS = re.compile(
-    r",?\s*(cut into chunks|diced|minced|juiced|sliced|halved|beaten|crumbled|uncooked)\b.*$",
+PREP_AFTER_COMMA = re.compile(
+    r",\s*(cut into chunks|diced|minced|juiced|sliced|halved|beaten|crumbled|chopped|peeled|divided|rinsed|drained).*?$",
     re.IGNORECASE,
 )
+
+LEADING_AMOUNT = re.compile(
+    r"^\s*(?:\d+\s+\d+/\d+|\d+/\d+|\d+(?:\.\d+)?|[¼½¾⅓⅔⅛⅜⅝⅞])\s*"
+    r"(?:cups?|tbsp|tablespoons?|tsp|teaspoons?|lbs?|pounds?|oz|ounces?|pints?|quarts?|gallons?|"
+    r"cloves?|cans?|packages?|pkgs?|bags?|bunch(?:es)?|heads?|slices?|pieces?)?\s*",
+    re.IGNORECASE,
+)
+
+
+def search_term_for(line):
+    term = PREP_AFTER_COMMA.sub("", line).strip()
+    term = re.sub(r",?\s*optional\b", "", term, flags=re.I).strip()
+    term = LEADING_AMOUNT.sub("", term).strip()
+    term = re.sub(r"^(?:large|medium|small)\s+", "", term, flags=re.I)
+    term = re.sub(r"\b(?:uncooked|beaten|crumbled|dried)\b\s*", "", term, flags=re.I)
+    term = re.sub(r"\s+", " ", term).strip(" ,.-")
+
+    # A few recipe-language phrases search much better with a grocery-style name.
+    replacements = {
+        "garlic cloves": "garlic",
+        "short-grain or jasmine rice": "jasmine rice",
+        "tin foil": "aluminum foil",
+    }
+    lower = term.lower()
+    if lower in replacements:
+        term = replacements[lower]
+    return term
 
 
 def parse_list(text):
@@ -44,16 +77,17 @@ def parse_list(text):
         if not line:
             continue
         if line.lower() in CATEGORIES:
-            category = line
+            category = line.title()
             continue
 
-        cleaned = PREP_WORDS.sub("", line).strip().rstrip(",")
         optional = bool(re.search(r"\boptional\b", line, re.I))
-        cleaned = re.sub(r",?\s*optional\b", "", cleaned, flags=re.I).strip()
+        search_term = search_term_for(line)
+        if not search_term:
+            continue
         items.append({
             "category": category,
             "original": line,
-            "cleaned": cleaned,
+            "cleaned": search_term,
             "optional": optional,
         })
     return items
@@ -71,6 +105,53 @@ def token_for_session():
     return token
 
 
+def kroger_headers():
+    token = token_for_session()
+    if not token:
+        return None
+    return {"Authorization": f"Bearer {token['access_token']}", "Accept": "application/json"}
+
+
+def product_choices(term, limit=4):
+    headers = kroger_headers()
+    if not headers:
+        return []
+    response = requests.get(
+        f"{KROGER_API}/products",
+        headers=headers,
+        params={
+            "filter.term": term,
+            "filter.locationId": DEFAULT_LOCATION_ID,
+            "filter.limit": limit,
+        },
+        timeout=20,
+    )
+    response.raise_for_status()
+    choices = []
+    for product in response.json().get("data", []):
+        item = (product.get("items") or [{}])[0]
+        price = item.get("price") or {}
+        inventory = item.get("inventory") or {}
+        image_url = None
+        for image in product.get("images") or []:
+            if image.get("perspective") == "front" or image.get("featured"):
+                sizes = image.get("sizes") or []
+                preferred = next((s for s in sizes if s.get("size") in ("medium", "small")), None)
+                if preferred:
+                    image_url = preferred.get("url")
+                    break
+        choices.append({
+            "upc": product.get("upc") or product.get("productId"),
+            "description": product.get("description", "Product"),
+            "brand": product.get("brand", ""),
+            "size": item.get("size", ""),
+            "price": price.get("promo") or price.get("regular"),
+            "stock": inventory.get("stockLevel", ""),
+            "image": image_url,
+        })
+    return choices
+
+
 @app.route("/", methods=["GET", "POST"])
 def index():
     text = ""
@@ -85,7 +166,71 @@ def index():
         connected=token_for_session() is not None,
         connected_profile=session.get("kroger_profile_id"),
         oauth_error=session.pop("oauth_error", None),
+        cart_message=session.pop("cart_message", None),
+        store_name=DEFAULT_STORE_NAME,
+        store_address=DEFAULT_STORE_ADDRESS,
     )
+
+
+@app.post("/match")
+def match_products():
+    if not token_for_session():
+        session["oauth_error"] = "Please connect King Soopers before matching products."
+        return redirect(url_for("index"))
+
+    text = request.form.get("shopping_list", "")
+    items = parse_list(text)
+    matched = []
+    for item in items:
+        try:
+            choices = product_choices(item["cleaned"])
+        except requests.RequestException as exc:
+            choices = []
+            item["error"] = str(exc)
+        item["choices"] = choices
+        matched.append(item)
+
+    return render_template(
+        "match.html",
+        items=matched,
+        text=text,
+        store_name=DEFAULT_STORE_NAME,
+        store_address=DEFAULT_STORE_ADDRESS,
+    )
+
+
+@app.post("/add-to-cart")
+def add_to_cart():
+    if not token_for_session():
+        session["oauth_error"] = "Your King Soopers connection expired. Please reconnect."
+        return redirect(url_for("index"))
+
+    upcs = request.form.getlist("selected_upc")
+    items = []
+    for upc in upcs:
+        if upc:
+            items.append({"upc": upc, "quantity": 1, "modality": "PICKUP"})
+
+    if not items:
+        session["cart_message"] = "No products were selected."
+        return redirect(url_for("index"))
+
+    try:
+        response = requests.put(
+            f"{KROGER_API}/cart/add",
+            headers={**kroger_headers(), "Content-Type": "application/json"},
+            json={"items": items},
+            timeout=20,
+        )
+        response.raise_for_status()
+        session["cart_message"] = f"✅ Added {len(items)} selected product{'s' if len(items) != 1 else ''} to your King Soopers cart."
+    except requests.RequestException as exc:
+        detail = ""
+        if getattr(exc, "response", None) is not None:
+            detail = f" ({exc.response.status_code}: {exc.response.text[:300]})"
+        session["cart_message"] = f"Could not add products to cart{detail}"
+
+    return redirect(url_for("index"))
 
 
 @app.get("/connect")
