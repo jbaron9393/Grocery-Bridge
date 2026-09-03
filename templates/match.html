@@ -29,15 +29,20 @@
     .warning { padding:10px 12px; border-radius:10px; background:#fff4e5; color:#684100; }
     .skip { opacity:.8; }
     .store { font-size:.92rem; margin-top:8px; }
-    .alt-search { margin:12px 0 14px; padding:12px; background:#f7f8f9; border-radius:12px; }
-    .alt-label { font-size:.86rem; font-weight:700; margin-bottom:7px; }
+    .alt-search { margin-top:10px; }
+    .alt-search summary { display:inline-flex; align-items:center; gap:5px; list-style:none; cursor:pointer; color:#6b6f75; font-size:.86rem; font-weight:650; padding:5px 2px; user-select:none; }
+    .alt-search summary::-webkit-details-marker { display:none; }
+    .alt-search summary::before { content:'›'; font-size:1rem; transition:transform .15s ease; }
+    .alt-search[open] summary::before { transform:rotate(90deg); }
+    .alt-search summary:hover { color:#202124; }
+    .alt-panel { margin-top:7px; padding:10px; background:#f7f8f9; border-radius:11px; }
     .search-row { display:flex; gap:8px; }
     .search-input-wrap { position:relative; flex:1; min-width:0; }
     .search-input-wrap input { width:100%; box-sizing:border-box; border:1px solid #ccc; border-radius:10px; padding:11px 40px 11px 12px; font:inherit; }
     .search-clear { position:absolute; right:7px; top:50%; transform:translateY(-50%); width:30px; height:30px; margin:0; padding:0; border-radius:50%; background:transparent; color:#777; font-size:1.15rem; line-height:30px; font-weight:500; }
     .search-clear:hover { background:#e7e9eb; color:#222; }
     .search-row > button:not(.search-clear) { width:auto; margin:0; padding:11px 14px; white-space:nowrap; }
-    .search-status { min-height:20px; margin-top:7px; color:#666; font-size:.84rem; }
+    .search-status { min-height:18px; margin-top:7px; color:#666; font-size:.84rem; }
     @media (max-width:560px) {
       .search-row { flex-direction:column; }
       .search-row > button:not(.search-clear) { width:100%; }
@@ -48,7 +53,7 @@
 <main>
   <div class="card">
     <h1>🔎 Match your groceries</h1>
-    <p class="sub">Choose the King Soopers product you want for each item. The first result is selected automatically. If you don't like the suggestions, search for something else right under that item.</p>
+    <p class="sub">Choose the King Soopers product you want for each item. The first result is selected automatically.</p>
     <div class="store"><strong>{{ store_name }}</strong><br>{{ store_address }}</div>
   </div>
 
@@ -59,18 +64,6 @@
         <section class="ingredient" id="ingredient-{{ ingredient_index }}">
           <h2>{{ item.cleaned }} {% if item.optional %}<span class="muted">(optional)</span>{% endif %}</h2>
           <div class="original">Copy Me That: {{ item.original }}</div>
-
-          <div class="alt-search">
-            <div class="alt-label">🔎 Want a different option?</div>
-            <div class="search-row">
-              <div class="search-input-wrap">
-                <input id="search-input-{{ ingredient_index }}" type="text" value="{{ item.cleaned }}" placeholder="Try: organic feta, jasmine rice, low sodium broth..." onkeydown="if(event.key === 'Enter'){ event.preventDefault(); searchAlternatives({{ ingredient_index }}); }">
-                <button class="search-clear" type="button" aria-label="Clear search" title="Clear search" onclick="clearAlternativeSearch({{ ingredient_index }})">×</button>
-              </div>
-              <button id="search-button-{{ ingredient_index }}" type="button" onclick="searchAlternatives({{ ingredient_index }})">Search</button>
-            </div>
-            <div class="search-status" id="search-status-{{ ingredient_index }}"></div>
-          </div>
 
           <div id="choices-{{ ingredient_index }}">
           {% if item.choices %}
@@ -90,13 +83,27 @@
               <div class="details"><div class="name">Skip this item</div></div>
             </label>
           {% else %}
-            <div class="warning">No good King Soopers match found. Try searching above or skip this item.</div>
+            <div class="warning">No good King Soopers match found. Search for another option below or skip this item.</div>
             <label class="option skip">
               <input type="radio" name="choice_{{ ingredient_index }}" value="" checked onchange="syncSelections()">
               <div class="details"><div class="name">Skip this item</div></div>
             </label>
           {% endif %}
           </div>
+
+          <details class="alt-search" {% if not item.choices %}open{% endif %}>
+            <summary>Search other options</summary>
+            <div class="alt-panel">
+              <div class="search-row">
+                <div class="search-input-wrap">
+                  <input id="search-input-{{ ingredient_index }}" type="text" value="{{ item.cleaned }}" placeholder="Try: organic feta, jasmine rice, low sodium broth..." onkeydown="if(event.key === 'Enter'){ event.preventDefault(); searchAlternatives({{ ingredient_index }}); }">
+                  <button class="search-clear" type="button" aria-label="Clear search" title="Clear search" onclick="clearAlternativeSearch({{ ingredient_index }})">×</button>
+                </div>
+                <button id="search-button-{{ ingredient_index }}" type="button" onclick="searchAlternatives({{ ingredient_index }})">Search</button>
+              </div>
+              <div class="search-status" id="search-status-{{ ingredient_index }}"></div>
+            </div>
+          </details>
         </section>
       {% endfor %}
 
