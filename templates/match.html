@@ -32,12 +32,15 @@
     .alt-search { margin:12px 0 14px; padding:12px; background:#f7f8f9; border-radius:12px; }
     .alt-label { font-size:.86rem; font-weight:700; margin-bottom:7px; }
     .search-row { display:flex; gap:8px; }
-    .search-row input { flex:1; min-width:0; box-sizing:border-box; border:1px solid #ccc; border-radius:10px; padding:11px 12px; font:inherit; }
-    .search-row button { width:auto; margin:0; padding:11px 14px; white-space:nowrap; }
+    .search-input-wrap { position:relative; flex:1; min-width:0; }
+    .search-input-wrap input { width:100%; box-sizing:border-box; border:1px solid #ccc; border-radius:10px; padding:11px 40px 11px 12px; font:inherit; }
+    .search-clear { position:absolute; right:7px; top:50%; transform:translateY(-50%); width:30px; height:30px; margin:0; padding:0; border-radius:50%; background:transparent; color:#777; font-size:1.15rem; line-height:30px; font-weight:500; }
+    .search-clear:hover { background:#e7e9eb; color:#222; }
+    .search-row > button:not(.search-clear) { width:auto; margin:0; padding:11px 14px; white-space:nowrap; }
     .search-status { min-height:20px; margin-top:7px; color:#666; font-size:.84rem; }
     @media (max-width:560px) {
       .search-row { flex-direction:column; }
-      .search-row button { width:100%; }
+      .search-row > button:not(.search-clear) { width:100%; }
     }
   </style>
 </head>
@@ -60,7 +63,10 @@
           <div class="alt-search">
             <div class="alt-label">🔎 Want a different option?</div>
             <div class="search-row">
-              <input id="search-input-{{ ingredient_index }}" type="search" value="{{ item.cleaned }}" placeholder="Try: organic feta, jasmine rice, low sodium broth..." onkeydown="if(event.key === 'Enter'){ event.preventDefault(); searchAlternatives({{ ingredient_index }}); }">
+              <div class="search-input-wrap">
+                <input id="search-input-{{ ingredient_index }}" type="text" value="{{ item.cleaned }}" placeholder="Try: organic feta, jasmine rice, low sodium broth..." onkeydown="if(event.key === 'Enter'){ event.preventDefault(); searchAlternatives({{ ingredient_index }}); }">
+                <button class="search-clear" type="button" aria-label="Clear search" title="Clear search" onclick="clearAlternativeSearch({{ ingredient_index }})">×</button>
+              </div>
               <button id="search-button-{{ ingredient_index }}" type="button" onclick="searchAlternatives({{ ingredient_index }})">Search</button>
             </div>
             <div class="search-status" id="search-status-{{ ingredient_index }}"></div>
@@ -113,6 +119,14 @@ function syncSelections() {
     hidden.value = radio.value;
     holder.appendChild(hidden);
   });
+}
+
+function clearAlternativeSearch(index) {
+  const input = document.getElementById(`search-input-${index}`);
+  const status = document.getElementById(`search-status-${index}`);
+  input.value = '';
+  status.textContent = '';
+  input.focus();
 }
 
 function makeProductOption(product, index, checked) {
