@@ -12,8 +12,10 @@
     h1 { margin:0 0 6px; font-size:1.9rem; }
     h2 { margin:0 0 4px; font-size:1.2rem; }
     .sub,.muted { color:#666; }
-    .ingredient { margin-bottom:24px; padding-bottom:22px; border-bottom:1px solid #eee; }
+    .ingredient { margin-bottom:24px; padding-bottom:22px; border-bottom:1px solid #eee; scroll-margin-top:18px; }
     .ingredient:last-child { border-bottom:0; }
+    .ingredient.jump-highlight { animation:jumpFlash 1.4s ease; }
+    @keyframes jumpFlash { 0%,100% { background:transparent; } 25% { background:#eef7ff; } }
     .original { font-size:.85rem; color:#777; margin-bottom:10px; }
     .option { display:flex; gap:12px; align-items:center; border:1px solid #ddd; border-radius:14px; padding:10px; margin:8px 0; cursor:pointer; }
     .option:has(input:checked) { border:2px solid #16753b; padding:9px; background:#f1faf4; }
@@ -29,6 +31,19 @@
     .warning { padding:10px 12px; border-radius:10px; background:#fff4e5; color:#684100; }
     .skip { opacity:.8; }
     .store { font-size:.92rem; margin-top:8px; }
+    .jump-box { margin-top:16px; position:relative; }
+    .jump-label { font-size:.84rem; color:#666; font-weight:650; margin-bottom:6px; }
+    .jump-input-wrap { position:relative; }
+    .jump-input-wrap input { width:100%; box-sizing:border-box; border:1px solid #c7d4df; border-radius:11px; padding:12px 40px 12px 38px; font:inherit; background:#fff; outline:none; }
+    .jump-input-wrap input:focus { border-color:#6ba6cf; box-shadow:0 0 0 3px rgba(107,166,207,.14); }
+    .jump-icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#71808c; pointer-events:none; }
+    .jump-clear { position:absolute; right:7px; top:50%; transform:translateY(-50%); width:30px; height:30px; margin:0; padding:0; border-radius:50%; background:transparent; color:#777; font-size:1.15rem; line-height:30px; font-weight:500; }
+    .jump-clear:hover { background:#eef2f5; color:#222; }
+    .jump-results { display:none; position:absolute; z-index:20; left:0; right:0; top:100%; margin-top:5px; background:white; border:1px solid #d7e0e7; border-radius:11px; box-shadow:0 8px 24px rgba(0,0,0,.12); max-height:240px; overflow:auto; }
+    .jump-results.show { display:block; }
+    .jump-result { display:block; width:100%; margin:0; padding:10px 12px; border:0; border-radius:0; background:white; color:#202124; text-align:left; font-weight:600; box-shadow:none; }
+    .jump-result:hover,.jump-result.active { background:#eef7ff; }
+    .jump-empty { padding:10px 12px; color:#777; font-size:.9rem; }
     .alt-search { margin-top:10px; }
     .alt-search summary { display:inline-flex; align-items:center; gap:5px; list-style:none; cursor:pointer; color:#6b6f75; font-size:.86rem; font-weight:650; padding:5px 2px; user-select:none; }
     .alt-search summary::-webkit-details-marker { display:none; }
@@ -52,12 +67,21 @@
     <h1>🔎 Match your groceries</h1>
     <p class="sub">Choose the King Soopers product you want for each item. The first result is selected automatically.</p>
     <div class="store"><strong>{{ store_name }}</strong><br>{{ store_address }}</div>
+    <div class="jump-box" id="jump-box">
+      <div class="jump-label">Jump to an item</div>
+      <div class="jump-input-wrap">
+        <span class="jump-icon" aria-hidden="true">⌕</span>
+        <input id="jump-input" type="text" autocomplete="off" placeholder="Search your list…" aria-label="Search items in your grocery list">
+        <button class="jump-clear" id="jump-clear" type="button" aria-label="Clear item search" title="Clear search">×</button>
+      </div>
+      <div class="jump-results" id="jump-results" role="listbox"></div>
+    </div>
   </div>
   <form method="post" action="/add-to-cart">
     <div class="card">
       {% for item in items %}
         {% set ingredient_index = loop.index0 %}
-        <section class="ingredient" id="ingredient-{{ ingredient_index }}">
+        <section class="ingredient" id="ingredient-{{ ingredient_index }}" data-item-name="{{ item.cleaned|e }}">
           <h2>{{ item.cleaned }} {% if item.optional %}<span class="muted">(optional)</span>{% endif %}</h2>
           <div class="original">Copy Me That: {{ item.original }}</div>
           <div id="choices-{{ ingredient_index }}">
@@ -96,6 +120,76 @@ function clearAlternativeSearch(index){const input=document.getElementById(`sear
 function makeProductOption(product,index,checked){const label=document.createElement('label');label.className='option';const radio=document.createElement('input');radio.type='radio';radio.name=`choice_${index}`;radio.value=product.upc||'';radio.checked=checked;radio.addEventListener('change',syncSelections);label.appendChild(radio);if(product.image){const img=document.createElement('img');img.src=product.image;img.alt='';label.appendChild(img);}const details=document.createElement('div');details.className='details';const name=document.createElement('div');name.className='name';name.textContent=product.description||'Product';details.appendChild(name);const metaParts=[];if(product.brand)metaParts.push(product.brand);if(product.size)metaParts.push(product.size);if(product.stock)metaParts.push(product.stock);if(metaParts.length){const meta=document.createElement('div');meta.className='meta';meta.textContent=metaParts.join(' · ');details.appendChild(meta);}label.appendChild(details);if(product.price!==null&&product.price!==undefined&&product.price!==''){const price=document.createElement('div');price.className='price';const numericPrice=Number(product.price);price.textContent=Number.isFinite(numericPrice)?`$${numericPrice.toFixed(2)}`:String(product.price);label.appendChild(price);}return label;}
 function makeSkipOption(index,checked){const label=document.createElement('label');label.className='option skip';const radio=document.createElement('input');radio.type='radio';radio.name=`choice_${index}`;radio.value='';radio.checked=checked;radio.addEventListener('change',syncSelections);const details=document.createElement('div');details.className='details';const name=document.createElement('div');name.className='name';name.textContent='Skip this item';details.appendChild(name);label.appendChild(radio);label.appendChild(details);return label;}
 async function searchAlternatives(index){const input=document.getElementById(`search-input-${index}`);const button=document.getElementById(`search-button-${index}`);const status=document.getElementById(`search-status-${index}`);const holder=document.getElementById(`choices-${index}`);const term=input.value.trim();if(!term){status.textContent='Type something to search for.';input.focus();return;}button.disabled=true;button.textContent='Searching…';status.textContent=`Searching King Soopers for “${term}”…`;try{const response=await fetch(`/search-products?q=${encodeURIComponent(term)}`,{headers:{'Accept':'application/json'}});const data=await response.json();if(!response.ok)throw new Error(data.error||'Search failed.');holder.innerHTML='';const products=data.choices||[];if(products.length){products.forEach((product,productIndex)=>holder.appendChild(makeProductOption(product,index,productIndex===0)));holder.appendChild(makeSkipOption(index,false));status.textContent=`${products.length} alternative${products.length===1?'':'s'} found for “${term}”.`;}else{const warning=document.createElement('div');warning.className='warning';warning.textContent=`No King Soopers products found for “${term}”. Try another search.`;holder.appendChild(warning);holder.appendChild(makeSkipOption(index,true));status.textContent='';}syncSelections();}catch(error){status.textContent=error.message||'Search failed. Try again.';}finally{button.disabled=false;button.textContent='Search';}}
+
+(function setupJumpSearch(){
+  const input=document.getElementById('jump-input');
+  const results=document.getElementById('jump-results');
+  const clear=document.getElementById('jump-clear');
+  const sections=[...document.querySelectorAll('.ingredient')].map(section=>({section,name:section.dataset.itemName||section.querySelector('h2')?.textContent.trim()||''}));
+  let visible=[];
+  let activeIndex=-1;
+
+  function goToItem(item){
+    if(!item)return;
+    results.classList.remove('show');
+    item.section.scrollIntoView({behavior:'smooth',block:'start'});
+    item.section.classList.remove('jump-highlight');
+    requestAnimationFrame(()=>item.section.classList.add('jump-highlight'));
+    setTimeout(()=>item.section.classList.remove('jump-highlight'),1500);
+  }
+
+  function render(){
+    const term=input.value.trim().toLowerCase();
+    results.innerHTML='';
+    activeIndex=-1;
+    visible=(term?sections.filter(item=>item.name.toLowerCase().includes(term)):sections).slice(0,12);
+    if(!visible.length){
+      const empty=document.createElement('div');
+      empty.className='jump-empty';
+      empty.textContent='No matching items';
+      results.appendChild(empty);
+      results.classList.add('show');
+      return;
+    }
+    visible.forEach((item,index)=>{
+      const button=document.createElement('button');
+      button.type='button';
+      button.className='jump-result';
+      button.textContent=item.name;
+      button.setAttribute('role','option');
+      button.addEventListener('click',()=>goToItem(item));
+      results.appendChild(button);
+    });
+    results.classList.add('show');
+  }
+
+  function updateActive(){
+    results.querySelectorAll('.jump-result').forEach((el,index)=>el.classList.toggle('active',index===activeIndex));
+  }
+
+  input.addEventListener('focus',render);
+  input.addEventListener('input',render);
+  input.addEventListener('keydown',event=>{
+    if(event.key==='ArrowDown'){
+      event.preventDefault();
+      if(!results.classList.contains('show'))render();
+      activeIndex=Math.min(activeIndex+1,visible.length-1);
+      updateActive();
+    }else if(event.key==='ArrowUp'){
+      event.preventDefault();
+      activeIndex=Math.max(activeIndex-1,0);
+      updateActive();
+    }else if(event.key==='Enter'){
+      event.preventDefault();
+      goToItem(visible[activeIndex>=0?activeIndex:0]);
+    }else if(event.key==='Escape'){
+      results.classList.remove('show');
+    }
+  });
+  clear.addEventListener('click',()=>{input.value='';results.classList.remove('show');input.focus();});
+  document.addEventListener('click',event=>{if(!document.getElementById('jump-box').contains(event.target))results.classList.remove('show');});
+})();
+
 syncSelections();
 </script>
 </main>
