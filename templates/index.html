@@ -12,7 +12,11 @@
     h1 { margin:0 0 6px; font-size:2rem; } h2 { margin-top:0; }
     .sub { color:#666; margin-top:0; }
     textarea { box-sizing:border-box; width:100%; min-height:280px; padding:14px; border:1px solid #ccc; border-radius:12px; font:inherit; resize:vertical; }
-    button { width:100%; border:0; border-radius:12px; padding:14px 18px; font-size:1rem; font-weight:700; cursor:pointer; background:#111; color:white; margin-top:12px; }
+    button, .button { display:block; box-sizing:border-box; width:100%; border:0; border-radius:12px; padding:14px 18px; font-size:1rem; font-weight:700; cursor:pointer; background:#111; color:white; margin-top:12px; text-align:center; text-decoration:none; }
+    .button.secondary { background:#eee; color:#222; }
+    .status { padding:12px 14px; border-radius:12px; margin:12px 0; background:#f1f3f4; }
+    .status.ok { background:#e8f5e9; }
+    .status.error { background:#ffebee; }
     .item { padding:12px 0; border-bottom:1px solid #eee; }
     .item:last-child { border-bottom:0; }
     .category { font-size:.8rem; color:#777; text-transform:uppercase; letter-spacing:.04em; }
@@ -25,7 +29,24 @@
 <main>
   <div class="card">
     <h1>🛒 Grocery Bridge</h1>
-    <p class="sub">Paste your Copy Me That shopping list. We'll clean it up before matching products at King Soopers.</p>
+    <p class="sub">Copy Me That → King Soopers</p>
+
+    {% if oauth_error %}
+      <div class="status error"><strong>Connection error:</strong> {{ oauth_error }}</div>
+    {% endif %}
+
+    {% if connected %}
+      <div class="status ok">✅ King Soopers account connected{% if connected_profile %} (profile {{ connected_profile }}){% endif %}.</div>
+      <a class="button secondary" href="/disconnect">Disconnect King Soopers</a>
+    {% else %}
+      <div class="status">Connect your Kroger/King Soopers shopper account so Grocery Bridge can eventually add selected products to your real cart.</div>
+      <a class="button" href="/connect">🔗 Connect King Soopers</a>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Paste shopping list</h2>
+    <p class="sub">Paste the shopping list copied from Copy Me That. We'll clean it before product matching.</p>
     <form method="post">
       <textarea name="shopping_list" placeholder="Produce&#10;2 large carrots, cut into chunks&#10;1 cucumber, diced&#10;...">{{ text }}</textarea>
       <button type="submit">✨ Parse Shopping List</button>
