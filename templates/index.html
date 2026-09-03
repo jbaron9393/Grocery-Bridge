@@ -5,32 +5,88 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Grocery Bridge</title>
   <style>
-    :root { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color:#202124; background:#f6f7f8; }
-    body { margin:0; }
-    main { max-width:760px; margin:0 auto; padding:24px 16px 64px; }
-    .card { background:white; border-radius:18px; padding:20px; box-shadow:0 4px 18px rgba(0,0,0,.07); margin-bottom:18px; }
-    h1 { margin:0 0 6px; font-size:2rem; } h2 { margin-top:0; }
-    .sub { color:#666; margin-top:0; }
-    textarea { box-sizing:border-box; width:100%; min-height:280px; padding:14px; border:1px solid #ccc; border-radius:12px; font:inherit; resize:vertical; }
-    button, .button { display:block; box-sizing:border-box; width:100%; border:0; border-radius:12px; padding:14px 18px; font-size:1rem; font-weight:700; cursor:pointer; background:#111; color:white; margin-top:12px; text-align:center; text-decoration:none; }
-    .button.secondary, button.secondary { background:#eee; color:#222; }
-    .button.green, button.green { background:#16753b; }
-    .button.clear { background:#fff; color:#555; border:1px solid #ddd; }
-    button:disabled { cursor:wait; opacity:.88; }
-    .status { padding:12px 14px; border-radius:12px; margin:12px 0; background:#f1f3f4; }
-    .status.ok { background:#e8f5e9; }
-    .status.error { background:#ffebee; }
-    .store { font-size:.9rem; line-height:1.4; margin-top:8px; color:#555; }
-    .item { padding:12px 0; border-bottom:1px solid #eee; }
+    :root {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color:#dfeae3;
+      background:#0b1511;
+      --bg:#0b1511;
+      --panel:#13231b;
+      --panel-2:#193026;
+      --panel-soft:#20392d;
+      --line:#315244;
+      --text:#eef7f1;
+      --muted:#9fb4a8;
+      --accent:#86d5a6;
+      --accent-2:#b9e9ca;
+      --accent-dark:#225f3c;
+      --danger:#ffb7b7;
+      --danger-bg:#3a2020;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0;
+      min-height:100vh;
+      background:
+        radial-gradient(circle at 12% 8%, rgba(92,170,122,.16), transparent 28%),
+        radial-gradient(circle at 88% 0%, rgba(185,233,202,.10), transparent 24%),
+        linear-gradient(180deg, #0b1511 0%, #0e1a15 100%);
+    }
+    main { max-width:780px; margin:0 auto; padding:30px 16px 72px; }
+    .card {
+      background:linear-gradient(180deg, rgba(25,48,38,.97), rgba(18,34,27,.97));
+      border:1px solid rgba(134,213,166,.16);
+      border-radius:22px;
+      padding:22px;
+      box-shadow:0 18px 50px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.025);
+      margin-bottom:18px;
+      backdrop-filter:blur(10px);
+    }
+    h1 { margin:0 0 6px; font-size:2rem; letter-spacing:-.035em; color:var(--text); }
+    h2 { margin-top:0; letter-spacing:-.02em; color:var(--text); }
+    .sub { color:var(--muted); margin-top:0; }
+    textarea {
+      width:100%; min-height:280px; padding:15px 16px;
+      border:1px solid var(--line); border-radius:14px;
+      background:#0f1d17; color:var(--text); font:inherit; resize:vertical;
+      outline:none; transition:border-color .15s ease, box-shadow .15s ease, background .15s ease;
+    }
+    textarea::placeholder { color:#71857a; }
+    textarea:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(134,213,166,.12); background:#102219; }
+    button, .button {
+      display:block; width:100%; border:1px solid transparent; border-radius:13px;
+      padding:14px 18px; font-size:1rem; font-weight:760; cursor:pointer;
+      background:linear-gradient(180deg, #8ad9aa, #6fc794); color:#0b2517;
+      margin-top:12px; text-align:center; text-decoration:none;
+      box-shadow:0 8px 24px rgba(55,140,88,.16);
+      transition:transform .12s ease, filter .12s ease, border-color .12s ease;
+    }
+    button:hover, .button:hover { filter:brightness(1.04); transform:translateY(-1px); }
+    button:active, .button:active { transform:translateY(0); }
+    .button.secondary, button.secondary { background:#1b3127; color:#c8d8cf; border-color:#355447; box-shadow:none; }
+    .button.green, button.green { background:linear-gradient(180deg, #8ad9aa, #6fc794); color:#0b2517; }
+    .button.clear { background:transparent; color:#8fa69a; border-color:#355447; box-shadow:none; }
+    button:disabled { cursor:wait; opacity:.72; transform:none; }
+    .status {
+      padding:12px 14px; border-radius:13px; margin:12px 0;
+      background:#182a22; color:#c4d3ca; border:1px solid #2e493d;
+    }
+    .status.ok { background:#173526; color:#c8efd6; border-color:#2b5c41; }
+    .status.error { background:var(--danger-bg); color:var(--danger); border-color:#684141; }
+    .store { font-size:.9rem; line-height:1.45; margin-top:8px; color:#9eb2a7; }
+    .item { padding:13px 0; border-bottom:1px solid rgba(133,165,148,.16); }
     .item:last-child { border-bottom:0; }
-    .category { font-size:.8rem; color:#777; text-transform:uppercase; letter-spacing:.04em; }
-    .clean { font-weight:700; margin-top:3px; }
-    .original { font-size:.9rem; color:#777; margin-top:2px; }
-    .optional { display:inline-block; font-size:.75rem; background:#eee; border-radius:999px; padding:3px 7px; margin-left:5px; }
-    .searching { display:none; align-items:center; justify-content:center; gap:10px; margin-top:12px; padding:12px; border-radius:12px; background:#eef7f1; color:#145c31; font-weight:650; }
+    .category { font-size:.76rem; color:#78b88f; text-transform:uppercase; letter-spacing:.09em; font-weight:700; }
+    .clean { font-weight:740; margin-top:4px; color:#edf7f1; }
+    .original { font-size:.9rem; color:#899d92; margin-top:2px; }
+    .optional { display:inline-block; font-size:.72rem; background:#254333; color:#b9e9ca; border:1px solid #3c654f; border-radius:999px; padding:3px 8px; margin-left:6px; }
+    .searching {
+      display:none; align-items:center; justify-content:center; gap:10px; margin-top:12px; padding:12px;
+      border-radius:12px; background:#173526; color:#bfe8cc; border:1px solid #2b5c41; font-weight:650;
+    }
     .searching.show { display:flex; }
-    .spinner { width:20px; height:20px; border:3px solid rgba(22,117,59,.22); border-top-color:#16753b; border-radius:50%; animation:spin .8s linear infinite; flex:0 0 auto; }
+    .spinner { width:20px; height:20px; border:3px solid rgba(134,213,166,.18); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; flex:0 0 auto; }
     @keyframes spin { to { transform:rotate(360deg); } }
+    @media (max-width:560px) { main { padding-top:18px; } .card { border-radius:18px; padding:18px; } }
   </style>
 </head>
 <body>
@@ -103,7 +159,6 @@
   const matchButton = document.getElementById('match-button');
   const searchingIndicator = document.getElementById('searching-indicator');
 
-  // A freshly parsed server value wins. Otherwise restore the last list on this device.
   if (textarea.value) {
     localStorage.setItem(STORAGE_KEY, textarea.value);
   } else {
@@ -111,7 +166,6 @@
     if (saved) textarea.value = saved;
   }
 
-  // Save continuously, so the list survives leaving for Kroger sign-in and coming back.
   textarea.addEventListener('input', function () {
     localStorage.setItem(STORAGE_KEY, textarea.value);
   });
