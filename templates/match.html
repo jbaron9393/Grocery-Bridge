@@ -41,6 +41,7 @@
   <form method="post" action="/add-to-cart">
     <div class="card">
       {% for item in items %}
+        {% set ingredient_index = loop.index0 %}
         <section class="ingredient">
           <h2>{{ item.cleaned }} {% if item.optional %}<span class="muted">(optional)</span>{% endif %}</h2>
           <div class="original">Copy Me That: {{ item.original }}</div>
@@ -48,7 +49,7 @@
           {% if item.choices %}
             {% for product in item.choices %}
               <label class="option">
-                <input type="radio" name="choice_{{ loop.index0 }}_{{ item.original|length }}" value="{{ product.upc }}" {% if loop.first %}checked{% endif %} onchange="syncSelections()">
+                <input type="radio" name="choice_{{ ingredient_index }}" value="{{ product.upc }}" {% if loop.first %}checked{% endif %} onchange="syncSelections()">
                 {% if product.image %}<img src="{{ product.image }}" alt="">{% endif %}
                 <div class="details">
                   <div class="name">{{ product.description }}</div>
@@ -58,7 +59,7 @@
               </label>
             {% endfor %}
             <label class="option skip">
-              <input type="radio" name="choice_{{ loop.index0 }}_{{ item.original|length }}" value="" onchange="syncSelections()">
+              <input type="radio" name="choice_{{ ingredient_index }}" value="" onchange="syncSelections()">
               <div class="details"><div class="name">Skip this item</div></div>
             </label>
           {% else %}
