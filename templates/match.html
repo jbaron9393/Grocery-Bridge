@@ -12,7 +12,7 @@
     h1 { margin:0 0 6px; font-size:1.9rem; }
     h2 { margin:0 0 4px; font-size:1.2rem; }
     .sub,.muted { color:#666; }
-    .ingredient { margin-bottom:20px; padding-bottom:18px; border-bottom:1px solid #eee; }
+    .ingredient { margin-bottom:24px; padding-bottom:22px; border-bottom:1px solid #eee; }
     .ingredient:last-child { border-bottom:0; }
     .original { font-size:.85rem; color:#777; margin-bottom:10px; }
     .option { display:flex; gap:12px; align-items:center; border:1px solid #ddd; border-radius:14px; padding:10px; margin:8px 0; cursor:pointer; }
@@ -24,17 +24,28 @@
     .meta { color:#666; font-size:.88rem; margin-top:3px; }
     .price { font-weight:700; white-space:nowrap; }
     button,.button { display:block; box-sizing:border-box; width:100%; border:0; border-radius:12px; padding:15px 18px; font-size:1rem; font-weight:750; cursor:pointer; background:#16753b; color:white; text-align:center; text-decoration:none; margin-top:12px; }
+    button:disabled { opacity:.65; cursor:wait; }
     .button.secondary { background:#eee; color:#222; }
     .warning { padding:10px 12px; border-radius:10px; background:#fff4e5; color:#684100; }
     .skip { opacity:.8; }
     .store { font-size:.92rem; margin-top:8px; }
+    .alt-search { margin:12px 0 14px; padding:12px; background:#f7f8f9; border-radius:12px; }
+    .alt-label { font-size:.86rem; font-weight:700; margin-bottom:7px; }
+    .search-row { display:flex; gap:8px; }
+    .search-row input { flex:1; min-width:0; box-sizing:border-box; border:1px solid #ccc; border-radius:10px; padding:11px 12px; font:inherit; }
+    .search-row button { width:auto; margin:0; padding:11px 14px; white-space:nowrap; }
+    .search-status { min-height:20px; margin-top:7px; color:#666; font-size:.84rem; }
+    @media (max-width:560px) {
+      .search-row { flex-direction:column; }
+      .search-row button { width:100%; }
+    }
   </style>
 </head>
 <body>
 <main>
   <div class="card">
     <h1>🔎 Match your groceries</h1>
-    <p class="sub">Choose the King Soopers product you want for each item. The first result is selected automatically.</p>
+    <p class="sub">Choose the King Soopers product you want for each item. The first result is selected automatically. If you don't like the suggestions, search for something else right under that item.</p>
     <div class="store"><strong>{{ store_name }}</strong><br>{{ store_address }}</div>
   </div>
 
@@ -42,10 +53,20 @@
     <div class="card">
       {% for item in items %}
         {% set ingredient_index = loop.index0 %}
-        <section class="ingredient">
+        <section class="ingredient" id="ingredient-{{ ingredient_index }}">
           <h2>{{ item.cleaned }} {% if item.optional %}<span class="muted">(optional)</span>{% endif %}</h2>
           <div class="original">Copy Me That: {{ item.original }}</div>
 
+          <div class="alt-search">
+            <div class="alt-label">🔎 Want a different option?</div>
+            <div class="search-row">
+              <input id="search-input-{{ ingredient_index }}" type="search" value="{{ item.cleaned }}" placeholder="Try: organic feta, jasmine rice, low sodium broth..." onkeydown="if(event.key === 'Enter'){ event.preventDefault(); searchAlternatives({{ ingredient_index }}); }">
+              <button id="search-button-{{ ingredient_index }}" type="button" onclick="searchAlternatives({{ ingredient_index }})">Search</button>
+            </div>
+            <div class="search-status" id="search-status-{{ ingredient_index }}"></div>
+          </div>
+
+          <div id="choices-{{ ingredient_index }}">
           {% if item.choices %}
             {% for product in item.choices %}
               <label class="option">
@@ -63,8 +84,13 @@
               <div class="details"><div class="name">Skip this item</div></div>
             </label>
           {% else %}
-            <div class="warning">No good King Soopers match found. This item will be skipped.</div>
+            <div class="warning">No good King Soopers match found. Try searching above or skip this item.</div>
+            <label class="option skip">
+              <input type="radio" name="choice_{{ ingredient_index }}" value="" checked onchange="syncSelections()">
+              <div class="details"><div class="name">Skip this item</div></div>
+            </label>
           {% endif %}
+          </div>
         </section>
       {% endfor %}
 
@@ -88,6 +114,134 @@ function syncSelections() {
     holder.appendChild(hidden);
   });
 }
+
+function makeProductOption(product, index, checked) {
+  const label = document.createElement('label');
+  label.className = 'option';
+
+  const radio = document.createElement('input');
+  radio.type = 'radio';
+  radio.name = `choice_${index}`;
+  radio.value = product.upc || '';
+  radio.checked = checked;
+  radio.addEventListener('change', syncSelections);
+  label.appendChild(radio);
+
+  if (product.image) {
+    const img = document.createElement('img');
+    img.src = product.image;
+    img.alt = '';
+    label.appendChild(img);
+  }
+
+  const details = document.createElement('div');
+  details.className = 'details';
+
+  const name = document.createElement('div');
+  name.className = 'name';
+  name.textContent = product.description || 'Product';
+  details.appendChild(name);
+
+  const metaParts = [];
+  if (product.brand) metaParts.push(product.brand);
+  if (product.size) metaParts.push(product.size);
+  if (product.stock) metaParts.push(product.stock);
+  if (metaParts.length) {
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = metaParts.join(' · ');
+    details.appendChild(meta);
+  }
+  label.appendChild(details);
+
+  if (product.price !== null && product.price !== undefined && product.price !== '') {
+    const price = document.createElement('div');
+    price.className = 'price';
+    const numericPrice = Number(product.price);
+    price.textContent = Number.isFinite(numericPrice) ? `$${numericPrice.toFixed(2)}` : String(product.price);
+    label.appendChild(price);
+  }
+
+  return label;
+}
+
+function makeSkipOption(index, checked) {
+  const label = document.createElement('label');
+  label.className = 'option skip';
+
+  const radio = document.createElement('input');
+  radio.type = 'radio';
+  radio.name = `choice_${index}`;
+  radio.value = '';
+  radio.checked = checked;
+  radio.addEventListener('change', syncSelections);
+
+  const details = document.createElement('div');
+  details.className = 'details';
+  const name = document.createElement('div');
+  name.className = 'name';
+  name.textContent = 'Skip this item';
+  details.appendChild(name);
+
+  label.appendChild(radio);
+  label.appendChild(details);
+  return label;
+}
+
+async function searchAlternatives(index) {
+  const input = document.getElementById(`search-input-${index}`);
+  const button = document.getElementById(`search-button-${index}`);
+  const status = document.getElementById(`search-status-${index}`);
+  const holder = document.getElementById(`choices-${index}`);
+  const term = input.value.trim();
+
+  if (!term) {
+    status.textContent = 'Type something to search for.';
+    input.focus();
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = 'Searching…';
+  status.textContent = `Searching King Soopers for “${term}”…`;
+
+  try {
+    const response = await fetch(`/search-products?q=${encodeURIComponent(term)}`, {
+      headers: { 'Accept': 'application/json' }
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Search failed.');
+    }
+
+    holder.innerHTML = '';
+    const products = data.choices || [];
+
+    if (products.length) {
+      products.forEach((product, productIndex) => {
+        holder.appendChild(makeProductOption(product, index, productIndex === 0));
+      });
+      holder.appendChild(makeSkipOption(index, false));
+      status.textContent = `${products.length} alternative${products.length === 1 ? '' : 's'} found for “${term}”.`;
+    } else {
+      const warning = document.createElement('div');
+      warning.className = 'warning';
+      warning.textContent = `No King Soopers products found for “${term}”. Try another search.`;
+      holder.appendChild(warning);
+      holder.appendChild(makeSkipOption(index, true));
+      status.textContent = '';
+    }
+
+    syncSelections();
+  } catch (error) {
+    status.textContent = error.message || 'Search failed. Try again.';
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Search';
+  }
+}
+
 syncSelections();
 </script>
 </main>
