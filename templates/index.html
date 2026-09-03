@@ -13,8 +13,9 @@
     .sub { color:#666; margin-top:0; }
     textarea { box-sizing:border-box; width:100%; min-height:280px; padding:14px; border:1px solid #ccc; border-radius:12px; font:inherit; resize:vertical; }
     button, .button { display:block; box-sizing:border-box; width:100%; border:0; border-radius:12px; padding:14px 18px; font-size:1rem; font-weight:700; cursor:pointer; background:#111; color:white; margin-top:12px; text-align:center; text-decoration:none; }
-    .button.secondary { background:#eee; color:#222; }
+    .button.secondary, button.secondary { background:#eee; color:#222; }
     .button.green, button.green { background:#16753b; }
+    .button.clear { background:#fff; color:#555; border:1px solid #ddd; }
     .status { padding:12px 14px; border-radius:12px; margin:12px 0; background:#f1f3f4; }
     .status.ok { background:#e8f5e9; }
     .status.error { background:#ffebee; }
@@ -52,10 +53,11 @@
 
   <div class="card">
     <h2>Paste shopping list</h2>
-    <p class="sub">Paste the shopping list copied from Copy Me That.</p>
-    <form method="post">
-      <textarea name="shopping_list" placeholder="Produce&#10;2 large carrots, cut into chunks&#10;1 cucumber, diced&#10;...">{{ text }}</textarea>
+    <p class="sub">Paste the shopping list copied from Copy Me That. Your most recent list stays here until you clear it.</p>
+    <form method="post" id="shopping-form">
+      <textarea id="shopping-list" name="shopping_list" placeholder="Produce&#10;2 large carrots, cut into chunks&#10;1 cucumber, diced&#10;...">{{ text }}</textarea>
       <button type="submit">✨ Parse Shopping List</button>
+      <button class="clear" type="button" id="clear-list">🧹 Clear Shopping List</button>
     </form>
   </div>
 
@@ -81,5 +83,37 @@
   </div>
   {% endif %}
 </main>
+
+<script>
+(function () {
+  const STORAGE_KEY = 'groceryBridgeLastShoppingList';
+  const textarea = document.getElementById('shopping-list');
+  const form = document.getElementById('shopping-form');
+  const clearButton = document.getElementById('clear-list');
+
+  // A freshly parsed server value wins. Otherwise restore the last list on this device.
+  if (textarea.value) {
+    localStorage.setItem(STORAGE_KEY, textarea.value);
+  } else {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) textarea.value = saved;
+  }
+
+  // Save continuously, so the list survives leaving for Kroger sign-in and coming back.
+  textarea.addEventListener('input', function () {
+    localStorage.setItem(STORAGE_KEY, textarea.value);
+  });
+
+  form.addEventListener('submit', function () {
+    localStorage.setItem(STORAGE_KEY, textarea.value);
+  });
+
+  clearButton.addEventListener('click', function () {
+    localStorage.removeItem(STORAGE_KEY);
+    textarea.value = '';
+    window.location.href = '/';
+  });
+})();
+</script>
 </body>
 </html>
