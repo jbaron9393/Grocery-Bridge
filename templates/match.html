@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Match Products · Grocery Bridge</title>
+  <style>
+    :root { font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:#202124; background:#f6f7f8; }
+    body { margin:0; }
+    main { max-width:820px; margin:0 auto; padding:24px 16px 80px; }
+    .card { background:white; border-radius:18px; padding:20px; box-shadow:0 4px 18px rgba(0,0,0,.07); margin-bottom:18px; }
+    h1 { margin:0 0 6px; font-size:1.9rem; }
+    h2 { margin:0 0 4px; font-size:1.2rem; }
+    .sub,.muted { color:#666; }
+    .ingredient { margin-bottom:20px; padding-bottom:18px; border-bottom:1px solid #eee; }
+    .ingredient:last-child { border-bottom:0; }
+    .original { font-size:.85rem; color:#777; margin-bottom:10px; }
+    .option { display:flex; gap:12px; align-items:center; border:1px solid #ddd; border-radius:14px; padding:10px; margin:8px 0; cursor:pointer; }
+    .option:has(input:checked) { border:2px solid #16753b; padding:9px; background:#f1faf4; }
+    .option input { transform:scale(1.25); }
+    .option img { width:62px; height:62px; object-fit:contain; border-radius:8px; background:white; }
+    .details { flex:1; min-width:0; }
+    .name { font-weight:700; }
+    .meta { color:#666; font-size:.88rem; margin-top:3px; }
+    .price { font-weight:700; white-space:nowrap; }
+    button,.button { display:block; box-sizing:border-box; width:100%; border:0; border-radius:12px; padding:15px 18px; font-size:1rem; font-weight:750; cursor:pointer; background:#16753b; color:white; text-align:center; text-decoration:none; margin-top:12px; }
+    .button.secondary { background:#eee; color:#222; }
+    .warning { padding:10px 12px; border-radius:10px; background:#fff4e5; color:#684100; }
+    .skip { opacity:.8; }
+    .store { font-size:.92rem; margin-top:8px; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <h1>🔎 Match your groceries</h1>
+    <p class="sub">Choose the King Soopers product you want for each item. The first result is selected automatically.</p>
+    <div class="store"><strong>{{ store_name }}</strong><br>{{ store_address }}</div>
+  </div>
+
+  <form method="post" action="/add-to-cart">
+    <div class="card">
+      {% for item in items %}
+        <section class="ingredient">
+          <h2>{{ item.cleaned }} {% if item.optional %}<span class="muted">(optional)</span>{% endif %}</h2>
+          <div class="original">Copy Me That: {{ item.original }}</div>
+
+          {% if item.choices %}
+            {% for product in item.choices %}
+              <label class="option">
+                <input type="radio" name="choice_{{ loop.index0 }}_{{ item.original|length }}" value="{{ product.upc }}" {% if loop.first %}checked{% endif %} onchange="syncSelections()">
+                {% if product.image %}<img src="{{ product.image }}" alt="">{% endif %}
+                <div class="details">
+                  <div class="name">{{ product.description }}</div>
+                  <div class="meta">{% if product.brand %}{{ product.brand }} · {% endif %}{{ product.size }}{% if product.stock %} · {{ product.stock }}{% endif %}</div>
+                </div>
+                {% if product.price is not none %}<div class="price">${{ '%.2f'|format(product.price|float) }}</div>{% endif %}
+              </label>
+            {% endfor %}
+            <label class="option skip">
+              <input type="radio" name="choice_{{ loop.index0 }}_{{ item.original|length }}" value="" onchange="syncSelections()">
+              <div class="details"><div class="name">Skip this item</div></div>
+            </label>
+          {% else %}
+            <div class="warning">No good King Soopers match found. This item will be skipped.</div>
+          {% endif %}
+        </section>
+      {% endfor %}
+
+      <div id="selected-fields"></div>
+      <button type="submit" onclick="syncSelections()">🛒 Add Selected Items to King Soopers</button>
+      <a class="button secondary" href="/">← Back to shopping list</a>
+    </div>
+  </form>
+
+<script>
+function syncSelections() {
+  const holder = document.getElementById('selected-fields');
+  holder.innerHTML = '';
+  const radios = document.querySelectorAll('input[type="radio"]:checked');
+  radios.forEach(radio => {
+    if (!radio.value) return;
+    const hidden = document.createElement('input');
+    hidden.type = 'hidden';
+    hidden.name = 'selected_upc';
+    hidden.value = radio.value;
+    holder.appendChild(hidden);
+  });
+}
+syncSelections();
+</script>
+</main>
+</body>
+</html>
