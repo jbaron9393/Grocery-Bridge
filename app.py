@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlencode
 
 import requests
-from flask import Flask, redirect, render_template, request, session, url_for
+from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-only-change-me")
@@ -211,6 +211,28 @@ def match_products():
         store_name=DEFAULT_STORE_NAME,
         store_address=DEFAULT_STORE_ADDRESS,
     )
+
+
+@app.get("/search-products")
+def search_products():
+    token = token_for_session()
+    if not token:
+        return jsonify({"error": "Your King Soopers connection expired. Please reconnect."}), 401
+
+    term = request.args.get("q", "").strip()
+    if not term:
+        return jsonify({"error": "Enter something to search for."}), 400
+
+    try:
+        choices = product_choices(term, token["access_token"], limit=12)
+        return jsonify({"term": term, "choices": choices})
+    except requests.RequestException as exc:
+        response = getattr(exc, "response", None)
+        if response is not None:
+            return jsonify({"error": f"King Soopers search failed ({response.status_code})."}), 502
+        return jsonify({"error": "King Soopers search timed out. Try again."}), 504
+    except Exception:
+        return jsonify({"error": "Product search failed. Try again."}), 500
 
 
 @app.post("/add-to-cart")
