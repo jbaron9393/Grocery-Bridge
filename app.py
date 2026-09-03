@@ -69,6 +69,13 @@ def search_term_for(line):
     return term
 
 
+def capitalize_item(text):
+    """Capitalize the first character without changing useful internal capitalization."""
+    if not text:
+        return text
+    return text[0].upper() + text[1:]
+
+
 def parse_list(text):
     items = []
     category = "Other"
@@ -87,7 +94,7 @@ def parse_list(text):
         items.append({
             "category": category,
             "original": line,
-            "cleaned": search_term,
+            "cleaned": capitalize_item(search_term),
             "optional": optional,
         })
     return items
